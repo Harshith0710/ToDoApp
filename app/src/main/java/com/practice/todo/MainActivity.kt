@@ -5,6 +5,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -15,11 +16,17 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.Edit
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -27,6 +34,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -36,6 +44,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.DialogProperties
 import androidx.core.view.WindowCompat
 import com.practice.todo.ui.theme.ToDoAppTheme
 
@@ -56,13 +65,18 @@ class MainActivity : ComponentActivity() {
 fun TodoAppInterface(){
     val tasks = remember { mutableStateListOf<String>() }
     var newTask by remember { mutableStateOf("") }
+    var showUpdateDialog by remember {mutableStateOf(false)}
+    var updateTaskIndex by remember { mutableIntStateOf(-1) }
+    var updateDialogTask by remember { mutableStateOf("") }
+    val dismissUpdateDialog = {
+        showUpdateDialog = false
+        updateTaskIndex = -1
+        updateDialogTask = ""
+    }
     Scaffold(
         modifier = Modifier
             .background(Color.LightGray)
             .windowInsetsPadding(WindowInsets.safeDrawing),
-        topBar = {
-            
-        },
         bottomBar = {
             Row(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -141,23 +155,139 @@ fun TodoAppInterface(){
                 .background(Color.LightGray)
                 .padding(paddingValues)
         ){
-            ListOfTasks(tasks)
+            ListOfTasks(tasks, { index ->
+                tasks.removeAt(index)
+            }, {index->
+                updateTaskIndex = index
+                showUpdateDialog = true
+                updateDialogTask = tasks[index]
+            })
         }
+    }
+    if(showUpdateDialog){
+        AlertDialog(
+            onDismissRequest = {
+                dismissUpdateDialog()
+            },
+            confirmButton = {
+                Text(
+                    text = "Ok",
+                    color = Color(0xFF3F51B5),
+                    modifier = Modifier
+                        .padding(horizontal = 8.dp)
+                        .clickable(
+                            onClick = {
+                                tasks[updateTaskIndex] = updateDialogTask
+                                dismissUpdateDialog()
+                            }
+                        )
+                )
+            },
+            dismissButton = {
+                Text(
+                    text = "Cancel",
+                    color = Color(0xFF3F51B5),
+                    modifier = Modifier
+                        .padding(horizontal = 8.dp)
+                        .clickable(
+                            onClick = {
+                                dismissUpdateDialog()
+                            }
+                        )
+                )
+            },
+            title = {
+                Text(
+                    text = "Update Task",
+                    style = MaterialTheme.typography.titleLarge
+                )
+            },
+            text = {
+                OutlinedTextField(
+                    value = updateDialogTask,
+                    onValueChange = { updateDialogTask = it },
+                    placeholder = { Text("Enter updated task") },
+                    singleLine = true,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 8.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = Color(0xFF3F51B5),
+                        unfocusedBorderColor = Color(0xFFBDBDBD),
+                        focusedLabelColor = Color(0xFF3F51B5),
+                        unfocusedLabelColor = Color.DarkGray,
+                        cursorColor = Color.Black,
+                        focusedTextColor = Color.Black,
+                        unfocusedTextColor = Color.Black,
+                        focusedContainerColor = Color(0xFFF0F0F0),
+                        unfocusedContainerColor = Color(0xFFF0F0F0)
+                    ),
+                    shape = RoundedCornerShape(12.dp),
+                    textStyle = MaterialTheme.typography.bodyLarge.copy(color = Color.Black),
+                    keyboardOptions = KeyboardOptions.Default.copy(
+                        capitalization = KeyboardCapitalization.Sentences
+                    )
+                )
+            },
+            containerColor = Color(0xFFF5F5F5),
+            titleContentColor = Color.Black,
+            textContentColor = Color.DarkGray,
+            iconContentColor = Color(0xFFEF5350),
+            shape = RoundedCornerShape(16.dp),
+            tonalElevation = 6.dp,
+            properties = DialogProperties(
+                dismissOnBackPress = true,
+                dismissOnClickOutside = true
+            )
+        )
     }
 }
 
 @Composable
-fun ListOfTasks(tasks: List<String>){
+fun ListOfTasks(tasks: List<String>, removeTask: (Int) -> Unit, updateTask: (Int) -> Unit){
     LazyColumn {
-        items(tasks){
-            Text(
-                text = it,
-                style = MaterialTheme.typography.bodyLarge,
-                color = Color.Black,
+        itemsIndexed(tasks){ index, item ->
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
                 modifier = Modifier
-                    .padding(8.dp)
                     .fillMaxWidth()
-            )
+            ){
+                Text(
+                    text = item,
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = Color.Black,
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(8.dp)
+                )
+                IconButton(
+                    onClick = {
+                        updateTask(index)
+                    },
+                    modifier = Modifier
+                        .align(Alignment.Top)
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.Edit,
+                        contentDescription = "Update the task",
+                        tint = Color.Black
+                    )
+                }
+                IconButton(
+                    onClick = {
+                        removeTask(index)
+                    },
+                    modifier = Modifier
+                        .align(Alignment.Top)
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.Close,
+                        contentDescription = "Remove the task",
+                        tint = Color.Black
+                    )
+                }
+            }
         }
     }
 }
