@@ -16,11 +16,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -33,9 +33,8 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -47,6 +46,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogProperties
 import androidx.core.view.WindowCompat
 import com.practice.todo.ui.theme.ToDoAppTheme
+import org.koin.compose.viewmodel.koinViewModel
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -62,16 +62,16 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun TodoAppInterface(){
-    val tasks = remember { mutableStateListOf<String>() }
+fun TodoAppInterface(taskViewModel: TaskViewModel = koinViewModel()){
+    val tasks by taskViewModel.tasks.collectAsState()
     var newTask by remember { mutableStateOf("") }
     var showUpdateDialog by remember {mutableStateOf(false)}
-    var updateTaskIndex by remember { mutableIntStateOf(-1) }
-    var updateDialogTask by remember { mutableStateOf("") }
+    var updateDialogTaskTitle by remember { mutableStateOf("") }
+    var updateDialogTaskId by remember { mutableStateOf<Int?>(null) }
     val dismissUpdateDialog = {
         showUpdateDialog = false
-        updateTaskIndex = -1
-        updateDialogTask = ""
+        updateDialogTaskTitle = ""
+        updateDialogTaskId = null
     }
     Scaffold(
         modifier = Modifier
@@ -131,7 +131,7 @@ fun TodoAppInterface(){
                 Button(
                     onClick = {
                         if (newTask.isNotEmpty()) {
-                            tasks.add(newTask)
+                            taskViewModel.upsertTask(Task(title = newTask))
                             newTask = ""
                         }
                     },
@@ -155,12 +155,12 @@ fun TodoAppInterface(){
                 .background(Color.LightGray)
                 .padding(paddingValues)
         ){
-            ListOfTasks(tasks, { index ->
-                tasks.removeAt(index)
-            }, {index->
-                updateTaskIndex = index
+            ListOfTasks(tasks, { task ->
+                taskViewModel.deleteTask(task)
+            }, { task ->
                 showUpdateDialog = true
-                updateDialogTask = tasks[index]
+                updateDialogTaskTitle = task.title
+                updateDialogTaskId = task.id
             })
         }
     }
@@ -177,7 +177,7 @@ fun TodoAppInterface(){
                         .padding(horizontal = 8.dp)
                         .clickable(
                             onClick = {
-                                tasks[updateTaskIndex] = updateDialogTask
+                                updateDialogTaskId?.let { taskViewModel.upsertTask(Task(it, updateDialogTaskTitle)) }
                                 dismissUpdateDialog()
                             }
                         )
@@ -204,8 +204,8 @@ fun TodoAppInterface(){
             },
             text = {
                 OutlinedTextField(
-                    value = updateDialogTask,
-                    onValueChange = { updateDialogTask = it },
+                    value = updateDialogTaskTitle,
+                    onValueChange = { updateDialogTaskTitle = it },
                     placeholder = { Text("Enter updated task") },
                     singleLine = true,
                     modifier = Modifier
@@ -244,9 +244,9 @@ fun TodoAppInterface(){
 }
 
 @Composable
-fun ListOfTasks(tasks: List<String>, removeTask: (Int) -> Unit, updateTask: (Int) -> Unit){
+fun ListOfTasks(tasks: List<Task>, removeTask: (Task) -> Unit, updateTask: (Task) -> Unit){
     LazyColumn {
-        itemsIndexed(tasks){ index, item ->
+        items(tasks){ task ->
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -254,7 +254,7 @@ fun ListOfTasks(tasks: List<String>, removeTask: (Int) -> Unit, updateTask: (Int
                     .fillMaxWidth()
             ){
                 Text(
-                    text = item,
+                    text = task.title,
                     style = MaterialTheme.typography.bodyLarge,
                     color = Color.Black,
                     modifier = Modifier
@@ -263,7 +263,7 @@ fun ListOfTasks(tasks: List<String>, removeTask: (Int) -> Unit, updateTask: (Int
                 )
                 IconButton(
                     onClick = {
-                        updateTask(index)
+                        updateTask(task)
                     },
                     modifier = Modifier
                         .align(Alignment.Top)
@@ -276,13 +276,13 @@ fun ListOfTasks(tasks: List<String>, removeTask: (Int) -> Unit, updateTask: (Int
                 }
                 IconButton(
                     onClick = {
-                        removeTask(index)
+                        removeTask(task)
                     },
                     modifier = Modifier
                         .align(Alignment.Top)
                 ) {
                     Icon(
-                        imageVector = Icons.Rounded.Close,
+                        imageVector = Icons.Default.Delete,
                         contentDescription = "Remove the task",
                         tint = Color.Black
                     )
