@@ -25,6 +25,8 @@ import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -136,7 +138,6 @@ fun TodoAppInterface(taskViewModel: TaskViewModel = koinViewModel()){
                         }
                     },
                     shape = RoundedCornerShape(12.dp),
-                    elevation = ButtonDefaults.buttonElevation(6.dp),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = Color(0xFF3F51B5),
                         contentColor = Color.White
@@ -155,12 +156,23 @@ fun TodoAppInterface(taskViewModel: TaskViewModel = koinViewModel()){
                 .background(Color.LightGray)
                 .padding(paddingValues)
         ){
-            ListOfTasks(tasks, { task ->
+            ListOfTasks(
+                tasks,
+                { task ->
                 taskViewModel.deleteTask(task)
-            }, { task ->
+                },
+                { task ->
                 showUpdateDialog = true
                 updateDialogTaskTitle = task.title
                 updateDialogTaskId = task.id
+                },
+                { task ->
+                taskViewModel.upsertTask(
+                    Task(
+                    task.id,
+                    task.title,
+                    !task.isDone
+                ))
             })
         }
     }
@@ -177,8 +189,10 @@ fun TodoAppInterface(taskViewModel: TaskViewModel = koinViewModel()){
                         .padding(horizontal = 8.dp)
                         .clickable(
                             onClick = {
-                                updateDialogTaskId?.let { taskViewModel.upsertTask(Task(it, updateDialogTaskTitle)) }
-                                dismissUpdateDialog()
+                                if(updateDialogTaskTitle.isNotEmpty()){
+                                    updateDialogTaskId?.let { taskViewModel.upsertTask(Task(it, updateDialogTaskTitle)) }
+                                    dismissUpdateDialog()
+                                }
                             }
                         )
                 )
@@ -244,7 +258,12 @@ fun TodoAppInterface(taskViewModel: TaskViewModel = koinViewModel()){
 }
 
 @Composable
-fun ListOfTasks(tasks: List<Task>, removeTask: (Task) -> Unit, updateTask: (Task) -> Unit){
+fun ListOfTasks(
+    tasks: List<Task>,
+    removeTask: (Task) -> Unit,
+    updateTask: (Task) -> Unit,
+    onCheck: (Task) -> Unit
+){
     LazyColumn {
         items(tasks){ task ->
             Row(
@@ -253,6 +272,19 @@ fun ListOfTasks(tasks: List<Task>, removeTask: (Task) -> Unit, updateTask: (Task
                 modifier = Modifier
                     .fillMaxWidth()
             ){
+                Checkbox(
+                    checked = task.isDone,
+                    onCheckedChange = { onCheck(task) },
+                    colors = CheckboxDefaults.colors(
+                        checkedColor = Color(0xFF1976D2),
+                        uncheckedColor = Color.DarkGray,
+                        checkmarkColor = Color.White,
+                        disabledCheckedColor = Color.LightGray,
+                        disabledUncheckedColor = Color.Gray
+                    ),
+                    modifier = Modifier
+                        .align(Alignment.Top)
+                )
                 Text(
                     text = task.title,
                     style = MaterialTheme.typography.bodyLarge,
