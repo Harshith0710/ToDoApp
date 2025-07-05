@@ -7,6 +7,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -75,23 +76,61 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-// Main TodoApp Interface
+data class ValidationResult(
+    val isValid: Boolean,
+    val errorMessage: String? = null
+)
+
+fun validateTaskText(
+    newText: String,
+    originalText: String? = null
+): ValidationResult {
+    if (newText.isBlank()) {
+        return ValidationResult(
+            isValid = false,
+            errorMessage = "Task cannot be empty or contain only spaces"
+        )
+    }
+
+    originalText?.let { original ->
+        if (newText.trim() == original.trim()) {
+            return ValidationResult(
+                isValid = false,
+                errorMessage = "Task text is unchanged"
+            )
+        }
+    }
+
+    return ValidationResult(isValid = true)
+}
+
+fun isValidTaskText(
+    newText: String,
+    originalText: String? = null
+): Boolean {
+    return validateTaskText(newText, originalText).isValid
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TodoAppInterface(taskViewModel: TaskViewModel = koinViewModel()) {
     val focusManager = LocalFocusManager.current
     val tasks by taskViewModel.tasks.collectAsState()
     var newTask by remember { mutableStateOf("") }
+    var showAddTaskError by remember { mutableStateOf(false) }
 
-    // Update dialog state
     var showUpdateDialog by remember { mutableStateOf(false) }
     var updateDialogTaskTitle by remember { mutableStateOf("") }
     var updateDialogTaskId by remember { mutableStateOf<Int?>(null) }
+    var originalTaskTitle by remember { mutableStateOf("") }
+    var showUpdateTaskError by remember { mutableStateOf(false) }
 
     val dismissUpdateDialog = {
         showUpdateDialog = false
         updateDialogTaskTitle = ""
         updateDialogTaskId = null
+        originalTaskTitle = ""
+        showUpdateTaskError = false
         focusManager.clearFocus()
     }
 
@@ -109,15 +148,22 @@ fun TodoAppInterface(taskViewModel: TaskViewModel = koinViewModel()) {
         bottomBar = {
             TodoBottomBar(
                 newTask = newTask,
-                onTaskChange = { newTask = it },
+                onTaskChange = {
+                    newTask = it
+                    showAddTaskError = false
+                },
                 onAddTask = {
-                    if (newTask.isNotEmpty()) {
-                        taskViewModel.upsertTask(Task(title = newTask))
+                    if (isValidTaskText(newTask)) {
+                        taskViewModel.upsertTask(Task(title = newTask.trim()))
                         newTask = ""
+                        showAddTaskError = false
                         focusManager.clearFocus()
+                    } else {
+                        showAddTaskError = true
                     }
                 },
-                focusManager = focusManager
+                focusManager = focusManager,
+                showError = showAddTaskError
             )
         }
     ) { paddingValues ->
@@ -128,7 +174,9 @@ fun TodoAppInterface(taskViewModel: TaskViewModel = koinViewModel()) {
             onUpdateTask = { task ->
                 showUpdateDialog = true
                 updateDialogTaskTitle = task.title
+                originalTaskTitle = task.title
                 updateDialogTaskId = task.id
+                showUpdateTaskError = false
             },
             onToggleTask = { task ->
                 taskViewModel.upsertTask(
@@ -141,21 +189,28 @@ fun TodoAppInterface(taskViewModel: TaskViewModel = koinViewModel()) {
     if (showUpdateDialog) {
         TaskUpdateDialog(
             taskTitle = updateDialogTaskTitle,
-            onTaskTitleChange = { updateDialogTaskTitle = it },
+            originalTaskTitle = originalTaskTitle,
+            onTaskTitleChange = {
+                updateDialogTaskTitle = it
+                showUpdateTaskError = false
+            },
             onConfirm = {
-                if (updateDialogTaskTitle.isNotEmpty()) {
+                if (isValidTaskText(updateDialogTaskTitle, originalTaskTitle)) {
                     updateDialogTaskId?.let {
-                        taskViewModel.upsertTask(Task(it, updateDialogTaskTitle))
+                        taskViewModel.upsertTask(Task(it, updateDialogTaskTitle.trim()))
                     }
                     dismissUpdateDialog()
+                } else {
+                    showUpdateTaskError = true
                 }
             },
-            onDismiss = dismissUpdateDialog
+            onDismiss = dismissUpdateDialog,
+            focusManager = focusManager,
+            showError = showUpdateTaskError
         )
     }
 }
 
-// Top App Bar Component
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TodoTopAppBar(
@@ -188,16 +243,20 @@ fun TodoTopAppBar(
     )
 }
 
-// Bottom Input Bar Component
 @Composable
 fun TodoBottomBar(
     newTask: String,
     onTaskChange: (String) -> Unit,
     onAddTask: () -> Unit,
-    focusManager: FocusManager
+    focusManager: FocusManager,
+    showError: Boolean
 ) {
+    val validationResult = remember(newTask) {
+        validateTaskText(newTask)
+    }
+
     Row(
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
             .fillMaxWidth()
@@ -209,80 +268,104 @@ fun TodoBottomBar(
             value = newTask,
             onValueChange = onTaskChange,
             focusManager = focusManager,
-            modifier = Modifier.weight(1f)
+            modifier = Modifier.weight(1f),
+            placeholderText = "Enter your task...",
+            validationResult = validationResult,
+            showError = showError
         )
 
         AddTaskButton(
-            onClick = onAddTask
+            onClick = onAddTask,
+            enabled = true
         )
     }
 }
 
-// Task Input Field Component
 @Composable
 fun TaskInputField(
     value: String,
     onValueChange: (String) -> Unit,
     focusManager: FocusManager,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    placeholderText: String,
+    validationResult: ValidationResult = ValidationResult(isValid = true),
+    showError: Boolean = false
 ) {
     val colorScheme = MaterialTheme.colorScheme
+    val isError = !validationResult.isValid && showError
 
-    OutlinedTextField(
-        value = value,
-        onValueChange = onValueChange,
-        placeholder = { Text(text = "Enter your task here...") },
-        singleLine = true,
-        colors = OutlinedTextFieldDefaults.colors(
-            focusedTextColor = colorScheme.onSurface,
-            unfocusedTextColor = colorScheme.onSurface,
-            disabledTextColor = colorScheme.onSurface.copy(alpha = 0.5f),
-            errorTextColor = colorScheme.error,
-            focusedContainerColor = colorScheme.surfaceVariant,
-            unfocusedContainerColor = colorScheme.surfaceVariant,
-            disabledContainerColor = colorScheme.surfaceVariant.copy(alpha = 0.8f),
-            errorContainerColor = colorScheme.error.copy(alpha = 0.1f),
-            cursorColor = colorScheme.primary,
-            errorCursorColor = colorScheme.error,
-            focusedBorderColor = colorScheme.primary,
-            unfocusedBorderColor = colorScheme.onSurface.copy(alpha = 0.3f),
-            disabledBorderColor = colorScheme.onSurface.copy(alpha = 0.2f),
-            errorBorderColor = colorScheme.error,
-            focusedPlaceholderColor = colorScheme.onSurface.copy(alpha = 0.5f),
-            unfocusedPlaceholderColor = colorScheme.onSurface.copy(alpha = 0.4f),
-            disabledPlaceholderColor = colorScheme.onSurface.copy(alpha = 0.3f),
-            errorPlaceholderColor = colorScheme.error
-        ),
-        modifier = modifier,
-        keyboardOptions = KeyboardOptions.Default.copy(
-            capitalization = KeyboardCapitalization.Sentences,
-            imeAction = ImeAction.Done
-        ),
-        keyboardActions = KeyboardActions(
-            onDone = { focusManager.clearFocus() }
-        ),
-        shape = RoundedCornerShape(16.dp)
-    )
+    Column(modifier = modifier) {
+        OutlinedTextField(
+            modifier = Modifier.fillMaxWidth(),
+            value = value,
+            onValueChange = onValueChange,
+            placeholder = { Text(text = placeholderText) },
+            singleLine = true,
+            isError = isError,
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedTextColor = colorScheme.onSurface,
+                unfocusedTextColor = colorScheme.onSurface,
+                disabledTextColor = colorScheme.onSurface.copy(alpha = 0.5f),
+                errorTextColor = colorScheme.error,
+                focusedContainerColor = colorScheme.surfaceVariant,
+                unfocusedContainerColor = colorScheme.surfaceVariant,
+                disabledContainerColor = colorScheme.surfaceVariant.copy(alpha = 0.8f),
+                errorContainerColor = colorScheme.surfaceVariant,
+                cursorColor = colorScheme.primary,
+                errorCursorColor = colorScheme.error,
+                focusedBorderColor = colorScheme.primary,
+                unfocusedBorderColor = colorScheme.onSurface.copy(alpha = 0.3f),
+                disabledBorderColor = colorScheme.onSurface.copy(alpha = 0.2f),
+                errorBorderColor = colorScheme.error,
+                focusedPlaceholderColor = colorScheme.onSurface.copy(alpha = 0.5f),
+                unfocusedPlaceholderColor = colorScheme.onSurface.copy(alpha = 0.4f),
+                disabledPlaceholderColor = colorScheme.onSurface.copy(alpha = 0.3f),
+                errorPlaceholderColor = colorScheme.error
+            ),
+            keyboardOptions = KeyboardOptions.Default.copy(
+                capitalization = KeyboardCapitalization.Sentences,
+                imeAction = ImeAction.Done
+            ),
+            keyboardActions = KeyboardActions(
+                onDone = { focusManager.clearFocus() }
+            ),
+            shape = RoundedCornerShape(16.dp),
+            textStyle = MaterialTheme.typography.bodyLarge.copy(
+                color = MaterialTheme.colorScheme.onSurface
+            )
+        )
+
+        if (isError) {
+            Text(
+                text = validationResult.errorMessage ?: "",
+                color = colorScheme.error,
+                style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.padding(start = 16.dp, top = 4.dp)
+            )
+        }
+    }
 }
 
-// Add Task Button Component
 @Composable
 fun AddTaskButton(
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    enabled: Boolean = true
 ) {
     Button(
         onClick = onClick,
+        enabled = enabled,
         shape = RoundedCornerShape(12.dp),
         colors = ButtonDefaults.buttonColors(
             containerColor = MaterialTheme.colorScheme.primary,
-            contentColor = MaterialTheme.colorScheme.onPrimary
+            contentColor = MaterialTheme.colorScheme.onPrimary,
+            disabledContainerColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f),
+            disabledContentColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
         )
     ) {
         Text(text = "Add")
     }
 }
 
-// Task List Component
 @Composable
 fun TodoTaskList(
     paddingValues: PaddingValues,
@@ -308,7 +391,6 @@ fun TodoTaskList(
     }
 }
 
-// Individual Task Item Component
 @Composable
 fun TaskItem(
     task: Task,
@@ -342,7 +424,6 @@ fun TaskItem(
     }
 }
 
-// Task Checkbox Component
 @Composable
 fun TaskCheckbox(
     isChecked: Boolean,
@@ -363,7 +444,6 @@ fun TaskCheckbox(
     )
 }
 
-// Task Text Component
 @Composable
 fun TaskText(
     text: String,
@@ -378,7 +458,6 @@ fun TaskText(
     )
 }
 
-// Task Action Buttons Component
 @Composable
 fun TaskActionButtons(
     onUpdate: () -> Unit,
@@ -412,20 +491,27 @@ fun TaskActionButtons(
     }
 }
 
-// Task Update Dialog Component
 @Composable
 fun TaskUpdateDialog(
     taskTitle: String,
+    originalTaskTitle: String,
     onTaskTitleChange: (String) -> Unit,
     onConfirm: () -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    focusManager: FocusManager,
+    showError: Boolean
 ) {
+    val validationResult = remember(taskTitle) {
+        validateTaskText(taskTitle, originalTaskTitle)
+    }
+
     AlertDialog(
         onDismissRequest = onDismiss,
         confirmButton = {
             DialogButton(
                 text = "Ok",
-                onClick = onConfirm
+                onClick = onConfirm,
+                enabled = true
             )
         },
         dismissButton = {
@@ -442,9 +528,14 @@ fun TaskUpdateDialog(
             )
         },
         text = {
-            UpdateTaskTextField(
+            TaskInputField(
                 value = taskTitle,
-                onValueChange = onTaskTitleChange
+                onValueChange = onTaskTitleChange,
+                focusManager = focusManager,
+                modifier = Modifier,
+                placeholderText = "Enter updated task...",
+                validationResult = validationResult,
+                showError = showError
             )
         },
         containerColor = MaterialTheme.colorScheme.surface,
@@ -460,54 +551,22 @@ fun TaskUpdateDialog(
     )
 }
 
-// Dialog Button Component
 @Composable
 fun DialogButton(
     text: String,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    enabled: Boolean = true
 ) {
     Text(
         text = text,
-        color = MaterialTheme.colorScheme.primary,
+        color = if (enabled)
+            MaterialTheme.colorScheme.primary
+        else
+            MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f),
         modifier = Modifier
             .padding(horizontal = 8.dp)
-            .clickable { onClick() }
-    )
-}
-
-// Update Task Text Field Component
-@Composable
-fun UpdateTaskTextField(
-    value: String,
-    onValueChange: (String) -> Unit
-) {
-    OutlinedTextField(
-        value = value,
-        onValueChange = onValueChange,
-        placeholder = { Text("Enter updated task") },
-        singleLine = true,
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 8.dp),
-        colors = OutlinedTextFieldDefaults.colors(
-            focusedBorderColor = MaterialTheme.colorScheme.primary,
-            unfocusedBorderColor = MaterialTheme.colorScheme.outline,
-            cursorColor = MaterialTheme.colorScheme.primary,
-            focusedTextColor = MaterialTheme.colorScheme.onSurface,
-            unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
-            focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
-            unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
-            focusedLabelColor = MaterialTheme.colorScheme.primary,
-            unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
-            focusedPlaceholderColor = MaterialTheme.colorScheme.onSurfaceVariant,
-            unfocusedPlaceholderColor = MaterialTheme.colorScheme.onSurfaceVariant,
-        ),
-        shape = RoundedCornerShape(12.dp),
-        textStyle = MaterialTheme.typography.bodyLarge.copy(
-            color = MaterialTheme.colorScheme.onSurface
-        ),
-        keyboardOptions = KeyboardOptions.Default.copy(
-            capitalization = KeyboardCapitalization.Sentences
-        )
+            .clickable(enabled = enabled) {
+                if (enabled) onClick()
+            }
     )
 }
