@@ -7,7 +7,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
@@ -31,6 +32,7 @@ import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -38,6 +40,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.TopAppBarScrollBehavior
 import androidx.compose.material3.rememberTopAppBarState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -47,8 +50,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.focus.FocusManager
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -70,20 +75,24 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+// Main TodoApp Interface
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun TodoAppInterface(taskViewModel: TaskViewModel = koinViewModel()){
+fun TodoAppInterface(taskViewModel: TaskViewModel = koinViewModel()) {
+    val focusManager = LocalFocusManager.current
     val tasks by taskViewModel.tasks.collectAsState()
-
     var newTask by remember { mutableStateOf("") }
 
-    var showUpdateDialog by remember {mutableStateOf(false)}
+    // Update dialog state
+    var showUpdateDialog by remember { mutableStateOf(false) }
     var updateDialogTaskTitle by remember { mutableStateOf("") }
     var updateDialogTaskId by remember { mutableStateOf<Int?>(null) }
+
     val dismissUpdateDialog = {
         showUpdateDialog = false
         updateDialogTaskTitle = ""
         updateDialogTaskId = null
+        focusManager.clearFocus()
     }
 
     val scrollBehaviour = TopAppBarDefaults.enterAlwaysScrollBehavior(rememberTopAppBarState())
@@ -93,279 +102,412 @@ fun TodoAppInterface(taskViewModel: TaskViewModel = koinViewModel()){
             .background(MaterialTheme.colorScheme.primaryContainer)
             .fillMaxSize()
             .statusBarsPadding()
-            .imePadding()
             .nestedScroll(scrollBehaviour.nestedScrollConnection),
         topBar = {
-            TopAppBar(
-                title = {
-                    Text(
-                        text = "My ToDo's",
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                },
-                navigationIcon = {
-                    IconButton(
-                        onClick = {}
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Menu,
-                            contentDescription = "Menu"
-                        )
-                    }
-                },
-                scrollBehavior = scrollBehaviour,
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer,
-                    titleContentColor = Color.White,
-                    scrolledContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                    navigationIconContentColor = Color.White,
-                    actionIconContentColor = Color.White
-                )
-            )
+            TodoTopAppBar(scrollBehaviour = scrollBehaviour)
         },
         bottomBar = {
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(8.dp)
-                    .navigationBarsPadding()
-            ) {
-                OutlinedTextField(
-                    value = newTask,
-                    onValueChange = {
-                        newTask = it
-                    },
-                    label = {Text(text = "New Task")},
-                    placeholder = {Text(text = "Enter your task here...")},
-                    singleLine = true,
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = Color.Black,
-                        unfocusedTextColor = Color.Black,
-                        disabledTextColor = Color.Gray,
-                        errorTextColor = Color.Red,
-
-                        focusedContainerColor = Color(0xFFF5F5F5),
-                        unfocusedContainerColor = Color(0xFFF5F5F5),
-                        disabledContainerColor = Color(0xFFE0E0E0),
-                        errorContainerColor = Color(0xFFFFEBEE),
-
-                        cursorColor = Color.Black,
-                        errorCursorColor = Color.Red,
-
-                        focusedBorderColor = Color(0xFF3F51B5),
-                        unfocusedBorderColor = Color(0xFFBDBDBD),
-                        disabledBorderColor = Color(0xFFDDDDDD),
-                        errorBorderColor = Color.Red,
-
-                        focusedLabelColor = Color(0xFF3F51B5),
-                        unfocusedLabelColor = Color.DarkGray,
-                        disabledLabelColor = Color.Gray,
-                        errorLabelColor = Color.Red,
-
-                        focusedPlaceholderColor = Color.Gray,
-                        unfocusedPlaceholderColor = Color.LightGray,
-                        disabledPlaceholderColor = Color.Gray,
-                        errorPlaceholderColor = Color.Red
-                    ),
-                    modifier = Modifier
-                        .weight(1f),
-                    keyboardOptions = KeyboardOptions.Default.copy(
-                        capitalization = KeyboardCapitalization.Sentences
-                    )
-                )
-                Button(
-                    onClick = {
-                        if (newTask.isNotEmpty()) {
-                            taskViewModel.upsertTask(Task(title = newTask))
-                            newTask = ""
-                        }
-                    },
-                    shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.primaryContainer,
-                        contentColor = Color.White
-                    )
-                ) {
-                    Text(
-                        text = "Add"
-                    )
-                }
-            }
+            TodoBottomBar(
+                newTask = newTask,
+                onTaskChange = { newTask = it },
+                onAddTask = {
+                    if (newTask.isNotEmpty()) {
+                        taskViewModel.upsertTask(Task(title = newTask))
+                        newTask = ""
+                        focusManager.clearFocus()
+                    }
+                },
+                focusManager = focusManager
+            )
         }
     ) { paddingValues ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(Color.LightGray)
-                .padding(paddingValues)
-        ){
-            ListOfTasks(
-                tasks,
-                { task ->
-                taskViewModel.deleteTask(task)
-                },
-                { task ->
+        TodoTaskList(
+            paddingValues = paddingValues,
+            tasks = tasks,
+            onDeleteTask = { task -> taskViewModel.deleteTask(task) },
+            onUpdateTask = { task ->
                 showUpdateDialog = true
                 updateDialogTaskTitle = task.title
                 updateDialogTaskId = task.id
-                },
-                { task ->
+            },
+            onToggleTask = { task ->
                 taskViewModel.upsertTask(
-                    Task(
-                    task.id,
-                    task.title,
-                    !task.isDone
-                ))
-            })
-        }
+                    Task(task.id, task.title, !task.isDone)
+                )
+            }
+        )
     }
-    if(showUpdateDialog){
-        AlertDialog(
-            onDismissRequest = {
-                dismissUpdateDialog()
+
+    if (showUpdateDialog) {
+        TaskUpdateDialog(
+            taskTitle = updateDialogTaskTitle,
+            onTaskTitleChange = { updateDialogTaskTitle = it },
+            onConfirm = {
+                if (updateDialogTaskTitle.isNotEmpty()) {
+                    updateDialogTaskId?.let {
+                        taskViewModel.upsertTask(Task(it, updateDialogTaskTitle))
+                    }
+                    dismissUpdateDialog()
+                }
             },
-            confirmButton = {
-                Text(
-                    text = "Ok",
-                    color = Color(0xFF3F51B5),
-                    modifier = Modifier
-                        .padding(horizontal = 8.dp)
-                        .clickable(
-                            onClick = {
-                                if(updateDialogTaskTitle.isNotEmpty()){
-                                    updateDialogTaskId?.let { taskViewModel.upsertTask(Task(it, updateDialogTaskTitle)) }
-                                    dismissUpdateDialog()
-                                }
-                            }
-                        )
-                )
-            },
-            dismissButton = {
-                Text(
-                    text = "Cancel",
-                    color = Color(0xFF3F51B5),
-                    modifier = Modifier
-                        .padding(horizontal = 8.dp)
-                        .clickable(
-                            onClick = {
-                                dismissUpdateDialog()
-                            }
-                        )
-                )
-            },
-            title = {
-                Text(
-                    text = "Update Task",
-                    style = MaterialTheme.typography.titleLarge
-                )
-            },
-            text = {
-                OutlinedTextField(
-                    value = updateDialogTaskTitle,
-                    onValueChange = { updateDialogTaskTitle = it },
-                    placeholder = { Text("Enter updated task") },
-                    singleLine = true,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 8.dp),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = Color(0xFF3F51B5),
-                        unfocusedBorderColor = Color(0xFFBDBDBD),
-                        focusedLabelColor = Color(0xFF3F51B5),
-                        unfocusedLabelColor = Color.DarkGray,
-                        cursorColor = Color.Black,
-                        focusedTextColor = Color.Black,
-                        unfocusedTextColor = Color.Black,
-                        focusedContainerColor = Color(0xFFF0F0F0),
-                        unfocusedContainerColor = Color(0xFFF0F0F0)
-                    ),
-                    shape = RoundedCornerShape(12.dp),
-                    textStyle = MaterialTheme.typography.bodyLarge.copy(color = Color.Black),
-                    keyboardOptions = KeyboardOptions.Default.copy(
-                        capitalization = KeyboardCapitalization.Sentences
-                    )
-                )
-            },
-            containerColor = Color(0xFFF5F5F5),
-            titleContentColor = Color.Black,
-            textContentColor = Color.DarkGray,
-            iconContentColor = Color(0xFFEF5350),
-            shape = RoundedCornerShape(16.dp),
-            tonalElevation = 6.dp,
-            properties = DialogProperties(
-                dismissOnBackPress = true,
-                dismissOnClickOutside = true
-            )
+            onDismiss = dismissUpdateDialog
         )
     }
 }
 
+// Top App Bar Component
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ListOfTasks(
-    tasks: List<Task>,
-    removeTask: (Task) -> Unit,
-    updateTask: (Task) -> Unit,
-    onCheck: (Task) -> Unit
-){
-    LazyColumn {
-        items(tasks){ task ->
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween,
-                modifier = Modifier
-                    .fillMaxWidth()
-            ){
-                Checkbox(
-                    checked = task.isDone,
-                    onCheckedChange = { onCheck(task) },
-                    colors = CheckboxDefaults.colors(
-                        checkedColor = Color(0xFF1976D2),
-                        uncheckedColor = Color.DarkGray,
-                        checkmarkColor = Color.White,
-                        disabledCheckedColor = Color.LightGray,
-                        disabledUncheckedColor = Color.Gray
-                    ),
-                    modifier = Modifier
-                        .align(Alignment.Top)
+fun TodoTopAppBar(
+    scrollBehaviour: TopAppBarScrollBehavior
+) {
+    TopAppBar(
+        title = {
+            Text(
+                text = "My ToDo's",
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        },
+        navigationIcon = {
+            IconButton(onClick = {}) {
+                Icon(
+                    imageVector = Icons.Default.Menu,
+                    contentDescription = "Menu"
                 )
-                Text(
-                    text = task.title,
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = Color.Black,
-                    modifier = Modifier
-                        .weight(1f)
-                        .padding(8.dp)
-                )
-                IconButton(
-                    onClick = {
-                        updateTask(task)
-                    },
-                    modifier = Modifier
-                        .align(Alignment.Top)
-                ) {
-                    Icon(
-                        imageVector = Icons.Rounded.Edit,
-                        contentDescription = "Update the task",
-                        tint = Color.Black
-                    )
-                }
-                IconButton(
-                    onClick = {
-                        removeTask(task)
-                    },
-                    modifier = Modifier
-                        .align(Alignment.Top)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Delete,
-                        contentDescription = "Remove the task",
-                        tint = Color.Black
-                    )
-                }
             }
+        },
+        scrollBehavior = scrollBehaviour,
+        colors = TopAppBarDefaults.topAppBarColors(
+            containerColor = MaterialTheme.colorScheme.primaryContainer,
+            titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+            scrolledContainerColor = MaterialTheme.colorScheme.primaryContainer,
+            navigationIconContentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+            actionIconContentColor = MaterialTheme.colorScheme.onPrimary
+        )
+    )
+}
+
+// Bottom Input Bar Component
+@Composable
+fun TodoBottomBar(
+    newTask: String,
+    onTaskChange: (String) -> Unit,
+    onAddTask: () -> Unit,
+    focusManager: FocusManager
+) {
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(8.dp)
+            .imePadding()
+            .navigationBarsPadding()
+    ) {
+        TaskInputField(
+            value = newTask,
+            onValueChange = onTaskChange,
+            focusManager = focusManager,
+            modifier = Modifier.weight(1f)
+        )
+
+        AddTaskButton(
+            onClick = onAddTask
+        )
+    }
+}
+
+// Task Input Field Component
+@Composable
+fun TaskInputField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    focusManager: FocusManager,
+    modifier: Modifier = Modifier
+) {
+    val colorScheme = MaterialTheme.colorScheme
+
+    OutlinedTextField(
+        value = value,
+        onValueChange = onValueChange,
+        placeholder = { Text(text = "Enter your task here...") },
+        singleLine = true,
+        colors = OutlinedTextFieldDefaults.colors(
+            focusedTextColor = colorScheme.onSurface,
+            unfocusedTextColor = colorScheme.onSurface,
+            disabledTextColor = colorScheme.onSurface.copy(alpha = 0.5f),
+            errorTextColor = colorScheme.error,
+            focusedContainerColor = colorScheme.surfaceVariant,
+            unfocusedContainerColor = colorScheme.surfaceVariant,
+            disabledContainerColor = colorScheme.surfaceVariant.copy(alpha = 0.8f),
+            errorContainerColor = colorScheme.error.copy(alpha = 0.1f),
+            cursorColor = colorScheme.primary,
+            errorCursorColor = colorScheme.error,
+            focusedBorderColor = colorScheme.primary,
+            unfocusedBorderColor = colorScheme.onSurface.copy(alpha = 0.3f),
+            disabledBorderColor = colorScheme.onSurface.copy(alpha = 0.2f),
+            errorBorderColor = colorScheme.error,
+            focusedPlaceholderColor = colorScheme.onSurface.copy(alpha = 0.5f),
+            unfocusedPlaceholderColor = colorScheme.onSurface.copy(alpha = 0.4f),
+            disabledPlaceholderColor = colorScheme.onSurface.copy(alpha = 0.3f),
+            errorPlaceholderColor = colorScheme.error
+        ),
+        modifier = modifier,
+        keyboardOptions = KeyboardOptions.Default.copy(
+            capitalization = KeyboardCapitalization.Sentences,
+            imeAction = ImeAction.Done
+        ),
+        keyboardActions = KeyboardActions(
+            onDone = { focusManager.clearFocus() }
+        ),
+        shape = RoundedCornerShape(16.dp)
+    )
+}
+
+// Add Task Button Component
+@Composable
+fun AddTaskButton(
+    onClick: () -> Unit
+) {
+    Button(
+        onClick = onClick,
+        shape = RoundedCornerShape(12.dp),
+        colors = ButtonDefaults.buttonColors(
+            containerColor = MaterialTheme.colorScheme.primary,
+            contentColor = MaterialTheme.colorScheme.onPrimary
+        )
+    ) {
+        Text(text = "Add")
+    }
+}
+
+// Task List Component
+@Composable
+fun TodoTaskList(
+    paddingValues: PaddingValues,
+    tasks: List<Task>,
+    onDeleteTask: (Task) -> Unit,
+    onUpdateTask: (Task) -> Unit,
+    onToggleTask: (Task) -> Unit
+) {
+    LazyColumn(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.surface),
+        contentPadding = paddingValues
+    ) {
+        items(tasks) { task ->
+            TaskItem(
+                task = task,
+                onDelete = { onDeleteTask(task) },
+                onUpdate = { onUpdateTask(task) },
+                onToggle = { onToggleTask(task) }
+            )
         }
     }
+}
+
+// Individual Task Item Component
+@Composable
+fun TaskItem(
+    task: Task,
+    onDelete: () -> Unit,
+    onUpdate: () -> Unit,
+    onToggle: () -> Unit
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        TaskCheckbox(
+            isChecked = task.isDone,
+            onCheckedChange = { onToggle() },
+            modifier = Modifier.align(Alignment.Top)
+        )
+
+        TaskText(
+            text = task.title,
+            modifier = Modifier
+                .weight(1f)
+                .padding(horizontal = 16.dp, vertical = 8.dp)
+        )
+
+        TaskActionButtons(
+            onUpdate = onUpdate,
+            onDelete = onDelete,
+            modifier = Modifier.align(Alignment.Top)
+        )
+    }
+}
+
+// Task Checkbox Component
+@Composable
+fun TaskCheckbox(
+    isChecked: Boolean,
+    onCheckedChange: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Checkbox(
+        checked = isChecked,
+        onCheckedChange = { onCheckedChange() },
+        colors = CheckboxDefaults.colors(
+            checkedColor = MaterialTheme.colorScheme.primary,
+            uncheckedColor = MaterialTheme.colorScheme.onSurfaceVariant,
+            checkmarkColor = MaterialTheme.colorScheme.onPrimary,
+            disabledCheckedColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f),
+            disabledUncheckedColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f)
+        ),
+        modifier = modifier
+    )
+}
+
+// Task Text Component
+@Composable
+fun TaskText(
+    text: String,
+    modifier: Modifier = Modifier
+) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.bodyLarge.copy(
+            color = MaterialTheme.colorScheme.onSurface
+        ),
+        modifier = modifier
+    )
+}
+
+// Task Action Buttons Component
+@Composable
+fun TaskActionButtons(
+    onUpdate: () -> Unit,
+    onDelete: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Row(modifier = modifier) {
+        IconButton(
+            onClick = onUpdate,
+            colors = IconButtonDefaults.iconButtonColors(
+                contentColor = MaterialTheme.colorScheme.onSurface
+            )
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.Edit,
+                contentDescription = "Update the task"
+            )
+        }
+
+        IconButton(
+            onClick = onDelete,
+            colors = IconButtonDefaults.iconButtonColors(
+                contentColor = MaterialTheme.colorScheme.onSurface
+            )
+        ) {
+            Icon(
+                imageVector = Icons.Default.Delete,
+                contentDescription = "Remove the task"
+            )
+        }
+    }
+}
+
+// Task Update Dialog Component
+@Composable
+fun TaskUpdateDialog(
+    taskTitle: String,
+    onTaskTitleChange: (String) -> Unit,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        confirmButton = {
+            DialogButton(
+                text = "Ok",
+                onClick = onConfirm
+            )
+        },
+        dismissButton = {
+            DialogButton(
+                text = "Cancel",
+                onClick = onDismiss
+            )
+        },
+        title = {
+            Text(
+                text = "Update Task",
+                style = MaterialTheme.typography.titleLarge,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+        },
+        text = {
+            UpdateTaskTextField(
+                value = taskTitle,
+                onValueChange = onTaskTitleChange
+            )
+        },
+        containerColor = MaterialTheme.colorScheme.surface,
+        titleContentColor = MaterialTheme.colorScheme.onSurface,
+        textContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+        iconContentColor = MaterialTheme.colorScheme.error,
+        shape = RoundedCornerShape(16.dp),
+        tonalElevation = 6.dp,
+        properties = DialogProperties(
+            dismissOnBackPress = true,
+            dismissOnClickOutside = true
+        )
+    )
+}
+
+// Dialog Button Component
+@Composable
+fun DialogButton(
+    text: String,
+    onClick: () -> Unit
+) {
+    Text(
+        text = text,
+        color = MaterialTheme.colorScheme.primary,
+        modifier = Modifier
+            .padding(horizontal = 8.dp)
+            .clickable { onClick() }
+    )
+}
+
+// Update Task Text Field Component
+@Composable
+fun UpdateTaskTextField(
+    value: String,
+    onValueChange: (String) -> Unit
+) {
+    OutlinedTextField(
+        value = value,
+        onValueChange = onValueChange,
+        placeholder = { Text("Enter updated task") },
+        singleLine = true,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp),
+        colors = OutlinedTextFieldDefaults.colors(
+            focusedBorderColor = MaterialTheme.colorScheme.primary,
+            unfocusedBorderColor = MaterialTheme.colorScheme.outline,
+            cursorColor = MaterialTheme.colorScheme.primary,
+            focusedTextColor = MaterialTheme.colorScheme.onSurface,
+            unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+            focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+            unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+            focusedLabelColor = MaterialTheme.colorScheme.primary,
+            unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+            focusedPlaceholderColor = MaterialTheme.colorScheme.onSurfaceVariant,
+            unfocusedPlaceholderColor = MaterialTheme.colorScheme.onSurfaceVariant,
+        ),
+        shape = RoundedCornerShape(12.dp),
+        textStyle = MaterialTheme.typography.bodyLarge.copy(
+            color = MaterialTheme.colorScheme.onSurface
+        ),
+        keyboardOptions = KeyboardOptions.Default.copy(
+            capitalization = KeyboardCapitalization.Sentences
+        )
+    )
 }
