@@ -48,6 +48,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -76,54 +77,21 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-data class ValidationResult(
-    val isValid: Boolean,
-    val errorMessage: String? = null
-)
-
-fun validateTaskText(
-    newText: String,
-    originalText: String? = null
-): ValidationResult {
-    if (newText.isBlank()) {
-        return ValidationResult(
-            isValid = false,
-            errorMessage = "Task cannot be empty or contain only spaces"
-        )
-    }
-
-    originalText?.let { original ->
-        if (newText.trim() == original.trim()) {
-            return ValidationResult(
-                isValid = false,
-                errorMessage = "Task text is unchanged"
-            )
-        }
-    }
-
-    return ValidationResult(isValid = true)
-}
-
-fun isValidTaskText(
-    newText: String,
-    originalText: String? = null
-): Boolean {
-    return validateTaskText(newText, originalText).isValid
-}
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TodoAppInterface(taskViewModel: TaskViewModel = koinViewModel()) {
     val focusManager = LocalFocusManager.current
-    val tasks by taskViewModel.tasks.collectAsState()
-    var newTask by remember { mutableStateOf("") }
-    var showAddTaskError by remember { mutableStateOf(false) }
 
-    var showUpdateDialog by remember { mutableStateOf(false) }
-    var updateDialogTaskTitle by remember { mutableStateOf("") }
-    var updateDialogTaskId by remember { mutableStateOf<Int?>(null) }
-    var originalTaskTitle by remember { mutableStateOf("") }
-    var showUpdateTaskError by remember { mutableStateOf(false) }
+    val tasks by taskViewModel.tasks.collectAsState()
+
+    var newTask by rememberSaveable { mutableStateOf("") }
+    var showAddTaskError by rememberSaveable { mutableStateOf(false) }
+
+    var showUpdateDialog by rememberSaveable { mutableStateOf(false) }
+    var updateDialogTaskTitle by rememberSaveable { mutableStateOf("") }
+    var updateDialogTaskId by rememberSaveable { mutableStateOf<Int?>(null) }
+    var originalTaskTitle by rememberSaveable { mutableStateOf("") }
+    var showUpdateTaskError by rememberSaveable { mutableStateOf(false) }
 
     val dismissUpdateDialog = {
         showUpdateDialog = false
@@ -153,7 +121,7 @@ fun TodoAppInterface(taskViewModel: TaskViewModel = koinViewModel()) {
                     showAddTaskError = false
                 },
                 onAddTask = {
-                    if (isValidTaskText(newTask)) {
+                    if (taskViewModel.isValidTaskText(newTask)) {
                         taskViewModel.upsertTask(Task(title = newTask.trim()))
                         newTask = ""
                         showAddTaskError = false
@@ -163,7 +131,10 @@ fun TodoAppInterface(taskViewModel: TaskViewModel = koinViewModel()) {
                     }
                 },
                 focusManager = focusManager,
-                showError = showAddTaskError
+                showError = showAddTaskError,
+                validateTaskText = { newTaskToAdd ->
+                    taskViewModel.validateTaskText(newTaskToAdd)
+                }
             )
         }
     ) { paddingValues ->
@@ -195,7 +166,7 @@ fun TodoAppInterface(taskViewModel: TaskViewModel = koinViewModel()) {
                 showUpdateTaskError = false
             },
             onConfirm = {
-                if (isValidTaskText(updateDialogTaskTitle, originalTaskTitle)) {
+                if (taskViewModel.isValidTaskText(updateDialogTaskTitle, originalTaskTitle)) {
                     updateDialogTaskId?.let {
                         taskViewModel.upsertTask(Task(it, updateDialogTaskTitle.trim()))
                     }
@@ -206,7 +177,10 @@ fun TodoAppInterface(taskViewModel: TaskViewModel = koinViewModel()) {
             },
             onDismiss = dismissUpdateDialog,
             focusManager = focusManager,
-            showError = showUpdateTaskError
+            showError = showUpdateTaskError,
+            validateTaskText = { updatedTitle, existingTitle ->
+                taskViewModel.validateTaskText(updatedTitle, existingTitle)
+            }
         )
     }
 }
@@ -249,7 +223,8 @@ fun TodoBottomBar(
     onTaskChange: (String) -> Unit,
     onAddTask: () -> Unit,
     focusManager: FocusManager,
-    showError: Boolean
+    showError: Boolean,
+    validateTaskText: (String) -> ValidationResult
 ) {
     val validationResult = remember(newTask) {
         validateTaskText(newTask)
@@ -377,10 +352,15 @@ fun TodoTaskList(
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.surface),
-        contentPadding = paddingValues
+            .background(MaterialTheme.colorScheme.surface)
+            .padding(paddingValues)
     ) {
-        items(tasks) { task ->
+        items(
+            items = tasks,
+            key = {
+                it.id
+            }
+        ) { task ->
             TaskItem(
                 task = task,
                 onDelete = { onDeleteTask(task) },
@@ -499,7 +479,8 @@ fun TaskUpdateDialog(
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
     focusManager: FocusManager,
-    showError: Boolean
+    showError: Boolean,
+    validateTaskText: (String, String) -> ValidationResult
 ) {
     val validationResult = remember(taskTitle) {
         validateTaskText(taskTitle, originalTaskTitle)
