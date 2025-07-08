@@ -357,9 +357,7 @@ fun TodoTaskList(
     ) {
         items(
             items = tasks,
-            key = {
-                it.id
-            }
+            key = { it.id }
         ) { task ->
             TaskItem(
                 task = task,
@@ -395,6 +393,8 @@ fun TaskItem(
                 .weight(1f)
                 .padding(horizontal = 16.dp, vertical = 8.dp)
         )
+
+        Text(task.importance.name)
 
         TaskActionButtons(
             onUpdate = onUpdate,
