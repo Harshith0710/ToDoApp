@@ -4,64 +4,90 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
-import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.safeContent
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.BottomSheetScaffold
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
-import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SheetValue
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.TopAppBarScrollBehavior
+import androidx.compose.material3.rememberBottomSheetScaffoldState
+import androidx.compose.material3.rememberStandardBottomSheetState
 import androidx.compose.material3.rememberTopAppBarState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.FocusManager
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogProperties
 import androidx.core.view.WindowCompat
 import com.practice.todo.ui.theme.ToDoAppTheme
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.launch
 import org.koin.compose.viewmodel.koinViewModel
 
 class MainActivity : ComponentActivity() {
@@ -81,11 +107,15 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun TodoAppInterface(taskViewModel: TaskViewModel = koinViewModel()) {
     val focusManager = LocalFocusManager.current
+    val density = LocalDensity.current
 
     val tasks by taskViewModel.tasks.collectAsState()
 
-    var newTask by rememberSaveable { mutableStateOf("") }
+    var newTaskTitle by rememberSaveable { mutableStateOf("") }
+    var newTaskDescription by rememberSaveable { mutableStateOf("") }
+
     var showAddTaskError by rememberSaveable { mutableStateOf(false) }
+    var showAddButton by rememberSaveable { mutableStateOf(true) }
 
     var showUpdateDialog by rememberSaveable { mutableStateOf(false) }
     var updateDialogTaskTitle by rememberSaveable { mutableStateOf("") }
@@ -102,59 +132,160 @@ fun TodoAppInterface(taskViewModel: TaskViewModel = koinViewModel()) {
         focusManager.clearFocus()
     }
 
+    val coroutineScope = rememberCoroutineScope()
+
+    val bottomSheetState = rememberStandardBottomSheetState(
+        initialValue = SheetValue.Hidden,
+        skipHiddenState = false
+    )
+    val scaffoldState = rememberBottomSheetScaffoldState(
+        bottomSheetState = bottomSheetState
+    )
+
+    var bottomSheetHeight by remember { mutableIntStateOf(0) }
+    var targetPadding by remember { mutableStateOf(0.dp) }
+    val bottomContentPadding by animateDpAsState(
+        targetValue = targetPadding,
+        animationSpec = tween(
+            durationMillis = 300
+        )
+    )
+
+    LaunchedEffect(bottomSheetState) {
+        snapshotFlow { bottomSheetState.currentValue }
+            .collectLatest {
+                targetPadding = when(it){
+                    SheetValue.Hidden, SheetValue.PartiallyExpanded -> 0.dp
+                    SheetValue.Expanded -> with(density){
+                        bottomSheetHeight.toDp()
+                    }
+                }
+                showAddButton = when(it){
+                    SheetValue.Hidden, SheetValue.PartiallyExpanded -> true
+                    SheetValue.Expanded -> false
+                }
+                if(it != SheetValue.Expanded) focusManager.clearFocus(true)
+            }
+    }
+
     val scrollBehaviour = TopAppBarDefaults.enterAlwaysScrollBehavior(rememberTopAppBarState())
 
-    Scaffold(
+    BottomSheetScaffold(
+        scaffoldState = scaffoldState,
         modifier = Modifier
-            .background(MaterialTheme.colorScheme.primaryContainer)
+            .background(MaterialTheme.colorScheme.surface)
             .fillMaxSize()
-            .statusBarsPadding()
+            .padding(
+                WindowInsets.safeContent
+                    .only(WindowInsetsSides.Horizontal)
+                    .asPaddingValues()
+            )
             .nestedScroll(scrollBehaviour.nestedScrollConnection),
-        topBar = {
-            TodoTopAppBar(scrollBehaviour = scrollBehaviour)
-        },
-        bottomBar = {
-            TodoBottomBar(
-                newTask = newTask,
-                onTaskChange = {
-                    newTask = it
-                    showAddTaskError = false
-                },
-                onAddTask = {
-                    if (taskViewModel.isValidTaskText(newTask)) {
-                        taskViewModel.upsertTask(Task(title = newTask.trim()))
-                        newTask = ""
+        sheetContent = {
+            Column(
+                modifier = Modifier
+                    .onGloballyPositioned{
+                        bottomSheetHeight = it.size.height
+                    }
+            ) {
+                DragHandleIndicator(modifier = Modifier)
+                BottomSheetContent(
+                    modifier = Modifier,
+                    newTaskTitle = newTaskTitle,
+                    newTaskDescription = newTaskDescription,
+                    onAddTask = {
+                        if (taskViewModel.isValidTaskText(newTaskTitle)) {
+                            focusManager.clearFocus()
+                            coroutineScope.launch {
+                                bottomSheetState.hide()
+                            }
+                            taskViewModel.upsertTask(Task(title = newTaskTitle.trim(), description = newTaskDescription))
+                            newTaskTitle = ""
+                            newTaskDescription = ""
+                            showAddTaskError = false
+                        }
+                        else {
+                            showAddTaskError = true
+                        }
+                    },
+                    onCancel = {
                         showAddTaskError = false
                         focusManager.clearFocus()
-                    } else {
-                        showAddTaskError = true
-                    }
-                },
-                focusManager = focusManager,
-                showError = showAddTaskError,
-                validateTaskText = { newTaskToAdd ->
-                    taskViewModel.validateTaskText(newTaskToAdd)
-                }
-            )
-        }
-    ) { paddingValues ->
-        TodoTaskList(
-            paddingValues = paddingValues,
-            tasks = tasks,
-            onDeleteTask = { task -> taskViewModel.deleteTask(task) },
-            onUpdateTask = { task ->
-                showUpdateDialog = true
-                updateDialogTaskTitle = task.title
-                originalTaskTitle = task.title
-                updateDialogTaskId = task.id
-                showUpdateTaskError = false
-            },
-            onToggleTask = { task ->
-                taskViewModel.upsertTask(
-                    Task(task.id, task.title, !task.isDone)
+                        coroutineScope.launch {
+                            bottomSheetState.hide()
+                        }
+                        newTaskTitle = ""
+                        newTaskDescription = ""
+                    },
+                    validateTaskTitle = { newTaskTitle ->
+                        taskViewModel.validateTaskText(newTaskTitle)
+                    },
+                    onTextTitleChange = {
+                        newTaskTitle = it
+                        showAddTaskError = false
+                    },
+                    onTextDescriptionChange = {
+                        newTaskDescription = it
+                    },
+                    focusManager = focusManager,
+                    showError = showAddTaskError
                 )
             }
-        )
+        },
+        sheetDragHandle = {},
+        sheetContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+        contentColor = MaterialTheme.colorScheme.onSurface,
+        sheetPeekHeight = 0.dp,
+        topBar = {
+            TodoTopAppBar(scrollBehaviour = scrollBehaviour)
+        }
+    ) { paddingValues ->
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
+                .then(
+                    if(bottomSheetState.currentValue == SheetValue.Expanded) {
+                        Modifier.padding(bottom = bottomContentPadding)
+                    }
+                    else {
+                        Modifier.padding(
+                            WindowInsets.navigationBars
+                                .only(WindowInsetsSides.Bottom)
+                                .asPaddingValues()
+                        )
+                    }
+                )
+        ){
+            TodoTaskList(
+                tasks = tasks,
+                onDeleteTask = { task -> taskViewModel.deleteTask(task) },
+                onUpdateTask = { task ->
+                    showUpdateDialog = true
+                    updateDialogTaskTitle = task.title
+                    originalTaskTitle = task.title
+                    updateDialogTaskId = task.id
+                    showUpdateTaskError = false
+                },
+                onToggleTask = { task ->
+                    taskViewModel.upsertTask(
+                        Task(task.id, task.title, !task.isDone, task.description)
+                    )
+                }
+            )
+            if(showAddButton){
+                FloatingAddButton(
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(16.dp),
+                    onClick = {
+                        coroutineScope.launch {
+                            bottomSheetState.expand()
+                        }
+                    }
+                )
+            }
+        }
     }
 
     if (showUpdateDialog) {
@@ -195,7 +326,8 @@ fun TodoTopAppBar(
             Text(
                 text = "My ToDo's",
                 maxLines = 1,
-                overflow = TextOverflow.Ellipsis
+                overflow = TextOverflow.Ellipsis,
+                style = MaterialTheme.typography.titleLarge
             )
         },
         navigationIcon = {
@@ -208,51 +340,103 @@ fun TodoTopAppBar(
         },
         scrollBehavior = scrollBehaviour,
         colors = TopAppBarDefaults.topAppBarColors(
-            containerColor = MaterialTheme.colorScheme.primaryContainer,
-            titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-            scrolledContainerColor = MaterialTheme.colorScheme.primaryContainer,
-            navigationIconContentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-            actionIconContentColor = MaterialTheme.colorScheme.onPrimary
+            containerColor = MaterialTheme.colorScheme.surface,
+            titleContentColor = MaterialTheme.colorScheme.onSurface,
+            scrolledContainerColor = MaterialTheme.colorScheme.surfaceContainer,
+            navigationIconContentColor = MaterialTheme.colorScheme.onSurface,
+            actionIconContentColor = MaterialTheme.colorScheme.onSurface
         )
     )
 }
 
 @Composable
-fun TodoBottomBar(
-    newTask: String,
-    onTaskChange: (String) -> Unit,
+fun BottomSheetContent(
+    modifier: Modifier = Modifier,
+    newTaskTitle: String,
+    newTaskDescription: String,
     onAddTask: () -> Unit,
+    onCancel: () -> Unit,
+    validateTaskTitle: (String) -> ValidationResult,
+    onTextTitleChange: (String) -> Unit,
+    onTextDescriptionChange: (String) -> Unit,
     focusManager: FocusManager,
-    showError: Boolean,
-    validateTaskText: (String) -> ValidationResult
+    showError: Boolean
 ) {
-    val validationResult = remember(newTask) {
-        validateTaskText(newTask)
+    val validationResult = remember(newTaskTitle){
+        validateTaskTitle(newTaskTitle)
     }
-
-    Row(
-        horizontalArrangement = Arrangement.spacedBy(16.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = modifier
             .fillMaxWidth()
-            .padding(8.dp)
+            .padding(24.dp) // Material 3 standard content padding
             .imePadding()
-            .navigationBarsPadding()
     ) {
-        TaskInputField(
-            value = newTask,
-            onValueChange = onTaskChange,
-            focusManager = focusManager,
-            modifier = Modifier.weight(1f),
-            placeholderText = "Enter your task...",
-            validationResult = validationResult,
-            showError = showError
+        Text(
+            text = "Your Task",
+            style = MaterialTheme.typography.titleLarge,
+            modifier = Modifier.padding(bottom = 16.dp) // Material 3 title bottom spacing
         )
 
-        AddTaskButton(
-            onClick = onAddTask,
-            enabled = true
+        TaskInputField(
+            value = newTaskTitle,
+            onValueChange = onTextTitleChange,
+            focusManager = focusManager,
+            modifier = Modifier,
+            placeholderText = "Enter your task title...",
+            validationResult = validationResult,
+            showError = showError,
+            keyboardImeAction = ImeAction.Next,
+            maxLines = 3
         )
+
+        Spacer(Modifier.height(16.dp)) // Material 3 form field spacing
+
+        TaskInputField(
+            value = newTaskDescription,
+            onValueChange = onTextDescriptionChange,
+            focusManager = focusManager,
+            modifier = Modifier,
+            placeholderText = "Enter your task description...",
+            validationResult = validationResult,
+            showError = false,
+            keyboardImeAction = ImeAction.Default,
+            maxLines = 8
+        )
+
+        Spacer(Modifier.height(24.dp)) // Material 3 form to button spacing
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(16.dp) // Material 3 button spacing
+        ) {
+            OutlinedButton(
+                onClick = onCancel,
+                modifier = Modifier.weight(1f),
+                colors = ButtonDefaults.outlinedButtonColors(
+                    contentColor = MaterialTheme.colorScheme.onSurface
+                )
+            ) {
+                Text(
+                    text = "Cancel",
+                    style = MaterialTheme.typography.labelLarge // Material 3 button text style
+                )
+            }
+
+            Button(
+                onClick = onAddTask,
+                modifier = Modifier.weight(1f),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary
+                )
+            ) {
+                Text(
+                    text = "Save",
+                    style = MaterialTheme.typography.labelLarge
+                )
+            }
+        }
     }
 }
 
@@ -264,7 +448,9 @@ fun TaskInputField(
     modifier: Modifier = Modifier,
     placeholderText: String,
     validationResult: ValidationResult = ValidationResult(isValid = true),
-    showError: Boolean = false
+    showError: Boolean = false,
+    keyboardImeAction: ImeAction,
+    maxLines: Int
 ) {
     val colorScheme = MaterialTheme.colorScheme
     val isError = !validationResult.isValid && showError
@@ -274,8 +460,10 @@ fun TaskInputField(
             modifier = Modifier.fillMaxWidth(),
             value = value,
             onValueChange = onValueChange,
-            placeholder = { Text(text = placeholderText) },
-            singleLine = true,
+            placeholder = { Text(
+                text = placeholderText,
+                style = MaterialTheme.typography.bodyLarge
+            ) },
             isError = isError,
             colors = OutlinedTextFieldDefaults.colors(
                 focusedTextColor = colorScheme.onSurface,
@@ -299,15 +487,17 @@ fun TaskInputField(
             ),
             keyboardOptions = KeyboardOptions.Default.copy(
                 capitalization = KeyboardCapitalization.Sentences,
-                imeAction = ImeAction.Done
+                imeAction = keyboardImeAction
             ),
             keyboardActions = KeyboardActions(
-                onDone = { focusManager.clearFocus() }
+                onDone = { focusManager.clearFocus() },
+                onNext = { focusManager.moveFocus(FocusDirection.Next) }
             ),
-            shape = RoundedCornerShape(16.dp),
+            shape = RoundedCornerShape(12.dp),
             textStyle = MaterialTheme.typography.bodyLarge.copy(
                 color = MaterialTheme.colorScheme.onSurface
-            )
+            ),
+            maxLines = maxLines
         )
 
         if (isError) {
@@ -322,28 +512,7 @@ fun TaskInputField(
 }
 
 @Composable
-fun AddTaskButton(
-    onClick: () -> Unit,
-    enabled: Boolean = true
-) {
-    Button(
-        onClick = onClick,
-        enabled = enabled,
-        shape = RoundedCornerShape(12.dp),
-        colors = ButtonDefaults.buttonColors(
-            containerColor = MaterialTheme.colorScheme.primary,
-            contentColor = MaterialTheme.colorScheme.onPrimary,
-            disabledContainerColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f),
-            disabledContentColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
-        )
-    ) {
-        Text(text = "Add")
-    }
-}
-
-@Composable
 fun TodoTaskList(
-    paddingValues: PaddingValues,
     tasks: List<Task>,
     onDeleteTask: (Task) -> Unit,
     onUpdateTask: (Task) -> Unit,
@@ -352,8 +521,10 @@ fun TodoTaskList(
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.surface)
-            .padding(paddingValues)
+            .background(MaterialTheme.colorScheme.background),
+        contentPadding = PaddingValues(
+            bottom = 8.dp
+        )
     ) {
         items(
             items = tasks,
@@ -379,22 +550,47 @@ fun TaskItem(
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween,
-        modifier = Modifier.fillMaxWidth()
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp)
     ) {
         TaskCheckbox(
             isChecked = task.isDone,
-            onCheckedChange = { onToggle() },
+            onCheckedChange = onToggle,
             modifier = Modifier.align(Alignment.Top)
         )
 
-        TaskText(
-            text = task.title,
+        Column(
             modifier = Modifier
                 .weight(1f)
-                .padding(horizontal = 16.dp, vertical = 8.dp)
-        )
+                .padding(horizontal = 16.dp)
+        ) {
+            Text(
+                text = task.title,
+                style = if (task.isDone) {
+                    MaterialTheme.typography.bodyLarge.copy(
+                        textDecoration = TextDecoration.LineThrough
+                    )
+                } else {
+                    MaterialTheme.typography.bodyLarge
+                },
+                color = if (task.isDone) {
+                    MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f)
+                } else {
+                    MaterialTheme.colorScheme.onBackground
+                }
+            )
 
-        Text(task.importance.name)
+            if (task.description.isNotBlank() && !task.isDone) {
+                Text(
+                    text = task.description,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.75f),
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        }
 
         TaskActionButtons(
             onUpdate = onUpdate,
@@ -425,26 +621,15 @@ fun TaskCheckbox(
 }
 
 @Composable
-fun TaskText(
-    text: String,
-    modifier: Modifier = Modifier
-) {
-    Text(
-        text = text,
-        style = MaterialTheme.typography.bodyLarge.copy(
-            color = MaterialTheme.colorScheme.onSurface
-        ),
-        modifier = modifier
-    )
-}
-
-@Composable
 fun TaskActionButtons(
     onUpdate: () -> Unit,
     onDelete: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Row(modifier = modifier) {
+    Row(
+        modifier = modifier,
+        horizontalArrangement = Arrangement.spacedBy(4.dp) // Material 3 icon button spacing
+    ) {
         IconButton(
             onClick = onUpdate,
             colors = IconButtonDefaults.iconButtonColors(
@@ -504,26 +689,31 @@ fun TaskUpdateDialog(
         title = {
             Text(
                 text = "Update Task",
-                style = MaterialTheme.typography.titleLarge,
+                style = MaterialTheme.typography.headlineSmall, // Material 3 dialog title style
                 color = MaterialTheme.colorScheme.onSurface
             )
         },
         text = {
-            TaskInputField(
-                value = taskTitle,
-                onValueChange = onTaskTitleChange,
-                focusManager = focusManager,
-                modifier = Modifier,
-                placeholderText = "Enter updated task...",
-                validationResult = validationResult,
-                showError = showError
-            )
+            Column {
+                Spacer(modifier = Modifier.height(8.dp)) // Material 3 dialog content spacing
+                TaskInputField(
+                    value = taskTitle,
+                    onValueChange = onTaskTitleChange,
+                    focusManager = focusManager,
+                    modifier = Modifier,
+                    placeholderText = "Enter updated task...",
+                    validationResult = validationResult,
+                    showError = showError,
+                    keyboardImeAction = ImeAction.Done,
+                    maxLines = 3
+                )
+            }
         },
         containerColor = MaterialTheme.colorScheme.surface,
         titleContentColor = MaterialTheme.colorScheme.onSurface,
         textContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
         iconContentColor = MaterialTheme.colorScheme.error,
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(28.dp), // Material 3 dialog rounded corners
         tonalElevation = 6.dp,
         properties = DialogProperties(
             dismissOnBackPress = true,
@@ -544,10 +734,48 @@ fun DialogButton(
             MaterialTheme.colorScheme.primary
         else
             MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f),
+        style = MaterialTheme.typography.labelLarge, // Material 3 dialog button text style
         modifier = Modifier
-            .padding(horizontal = 8.dp)
+            .padding(horizontal = 12.dp, vertical = 8.dp) // Material 3 dialog button padding
             .clickable(enabled = enabled) {
                 if (enabled) onClick()
             }
     )
+}
+
+@Composable
+fun FloatingAddButton(modifier: Modifier = Modifier, onClick: () -> Unit) {
+    FloatingActionButton(
+        modifier = modifier,
+        onClick = {
+            onClick()
+        }
+    ) {
+        Icon(
+            imageVector = Icons.Default.Add,
+            contentDescription = "Add Task"
+        )
+    }
+}
+
+@Composable
+fun DragHandleIndicator(
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(vertical = 12.dp), // Material 3 drag handle padding
+        contentAlignment = Alignment.Center
+    ) {
+        Box(
+            modifier = Modifier
+                .width(32.dp)
+                .height(4.dp)
+                .background(
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    shape = RoundedCornerShape(2.dp)
+                )
+        )
+    }
 }
