@@ -17,6 +17,8 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.calculateEndPadding
+import androidx.compose.foundation.layout.calculateStartPadding
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -25,7 +27,9 @@ import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeContent
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -82,6 +86,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogProperties
 import androidx.core.view.WindowCompat
@@ -174,12 +179,10 @@ fun TodoAppInterface(taskViewModel: TaskViewModel = koinViewModel()) {
         scaffoldState = scaffoldState,
         modifier = Modifier
             .background(MaterialTheme.colorScheme.surface)
-            .fillMaxSize()
-            .padding(
-                WindowInsets.safeContent
-                    .only(WindowInsetsSides.Horizontal)
-                    .asPaddingValues()
+            .windowInsetsPadding(
+                WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal)
             )
+            .fillMaxSize()
             .nestedScroll(scrollBehaviour.nestedScrollConnection),
         sheetContent = {
             Column(
@@ -242,20 +245,9 @@ fun TodoAppInterface(taskViewModel: TaskViewModel = koinViewModel()) {
     ) { paddingValues ->
         Box(
             modifier = Modifier
-                .fillMaxSize()
                 .padding(paddingValues)
-                .then(
-                    if(bottomSheetState.currentValue == SheetValue.Expanded) {
-                        Modifier.padding(bottom = bottomContentPadding)
-                    }
-                    else {
-                        Modifier.padding(
-                            WindowInsets.navigationBars
-                                .only(WindowInsetsSides.Bottom)
-                                .asPaddingValues()
-                        )
-                    }
-                )
+                .padding(bottom = bottomContentPadding)
+                .fillMaxSize()
         ){
             TodoTaskList(
                 tasks = tasks,
@@ -369,13 +361,13 @@ fun BottomSheetContent(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = modifier
             .fillMaxWidth()
-            .padding(24.dp) // Material 3 standard content padding
+            .padding(24.dp)
             .imePadding()
     ) {
         Text(
             text = "Your Task",
             style = MaterialTheme.typography.titleLarge,
-            modifier = Modifier.padding(bottom = 16.dp) // Material 3 title bottom spacing
+            modifier = Modifier.padding(bottom = 16.dp)
         )
 
         TaskInputField(
@@ -520,11 +512,17 @@ fun TodoTaskList(
 ) {
     LazyColumn(
         modifier = Modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background),
+            .background(MaterialTheme.colorScheme.background)
+            .fillMaxSize(),
         contentPadding = PaddingValues(
-            bottom = 8.dp
-        )
+            start = WindowInsets.safeContent.asPaddingValues().calculateStartPadding(
+                layoutDirection = LayoutDirection.Ltr
+            ),
+            end = WindowInsets.safeContent.asPaddingValues().calculateEndPadding(
+                layoutDirection = LayoutDirection.Rtl
+            ),
+            bottom = WindowInsets.safeContent.asPaddingValues().calculateBottomPadding()
+    )
     ) {
         items(
             items = tasks,
@@ -552,7 +550,7 @@ fun TaskItem(
         horizontalArrangement = Arrangement.SpaceBetween,
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 8.dp)
+            .padding(vertical = 12.dp)
     ) {
         TaskCheckbox(
             isChecked = task.isDone,
@@ -746,7 +744,8 @@ fun DialogButton(
 @Composable
 fun FloatingAddButton(modifier: Modifier = Modifier, onClick: () -> Unit) {
     FloatingActionButton(
-        modifier = modifier,
+        modifier = modifier
+            .windowInsetsPadding(WindowInsets.navigationBars),
         onClick = {
             onClick()
         }
