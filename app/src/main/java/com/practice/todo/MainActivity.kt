@@ -39,6 +39,11 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Timer
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.BottomSheetScaffold
@@ -55,7 +60,14 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SheetValue
+import androidx.compose.material3.DrawerValue
+import androidx.compose.material3.ModalDrawerSheet
+import androidx.compose.material3.ModalNavigationDrawer
+import androidx.compose.material3.NavigationDrawerItem
+import androidx.compose.material3.NavigationDrawerItemDefaults
+import androidx.compose.material3.rememberDrawerState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
@@ -110,7 +122,63 @@ class MainActivity : ComponentActivity() {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun TodoAppInterface(taskViewModel: TaskViewModel = koinViewModel()) {
+fun TodoAppInterface(
+    taskViewModel: TaskViewModel = koinViewModel(),
+    focusTimerViewModel: FocusTimerViewModel = koinViewModel()
+) {
+    var selectedScreen by rememberSaveable { mutableIntStateOf(0) }
+    val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
+    val scope = rememberCoroutineScope()
+
+    ModalNavigationDrawer(
+        drawerState = drawerState,
+        drawerContent = {
+            ModalDrawerSheet {
+                Spacer(modifier = Modifier.height(16.dp))
+                Text(
+                    text = "Menu",
+                    style = MaterialTheme.typography.headlineMedium,
+                    modifier = Modifier.padding(16.dp)
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+
+                NavigationDrawerItem(
+                    icon = { Icon(Icons.Default.CheckCircle, contentDescription = null) },
+                    label = { Text("Tasks") },
+                    selected = selectedScreen == 0,
+                    onClick = {
+                        selectedScreen = 0
+                        scope.launch { drawerState.close() }
+                    },
+                    modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
+                )
+
+                NavigationDrawerItem(
+                    icon = { Icon(Icons.Default.Timer, contentDescription = null) },
+                    label = { Text("Focus Timer") },
+                    selected = selectedScreen == 1,
+                    onClick = {
+                        selectedScreen = 1
+                        scope.launch { drawerState.close() }
+                    },
+                    modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
+                )
+            }
+        }
+    ) {
+        when (selectedScreen) {
+            0 -> TasksScreen(taskViewModel, onMenuClick = { scope.launch { drawerState.open() } })
+            1 -> FocusTimerScreen(focusTimerViewModel, onMenuClick = { scope.launch { drawerState.open() } })
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun TasksScreen(
+    taskViewModel: TaskViewModel = koinViewModel(),
+    onMenuClick: () -> Unit = {}
+) {
     val focusManager = LocalFocusManager.current
     val density = LocalDensity.current
 
@@ -240,7 +308,10 @@ fun TodoAppInterface(taskViewModel: TaskViewModel = koinViewModel()) {
         contentColor = MaterialTheme.colorScheme.onSurface,
         sheetPeekHeight = 0.dp,
         topBar = {
-            TodoTopAppBar(scrollBehaviour = scrollBehaviour)
+            TodoTopAppBar(
+                scrollBehaviour = scrollBehaviour,
+                onMenuClick = onMenuClick
+            )
         }
     ) { paddingValues ->
         Box(
@@ -311,7 +382,8 @@ fun TodoAppInterface(taskViewModel: TaskViewModel = koinViewModel()) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TodoTopAppBar(
-    scrollBehaviour: TopAppBarScrollBehavior
+    scrollBehaviour: TopAppBarScrollBehavior,
+    onMenuClick: () -> Unit = {}
 ) {
     TopAppBar(
         title = {
@@ -323,7 +395,7 @@ fun TodoTopAppBar(
             )
         },
         navigationIcon = {
-            IconButton(onClick = {}) {
+            IconButton(onClick = onMenuClick) {
                 Icon(
                     imageVector = Icons.Default.Menu,
                     contentDescription = "Menu"
@@ -522,7 +594,7 @@ fun TodoTaskList(
                 layoutDirection = LayoutDirection.Rtl
             ),
             bottom = WindowInsets.safeContent.asPaddingValues().calculateBottomPadding()
-    )
+        )
     ) {
         items(
             items = tasks,
@@ -776,5 +848,117 @@ fun DragHandleIndicator(
                     shape = RoundedCornerShape(2.dp)
                 )
         )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun FocusTimerScreen(
+    focusTimerViewModel: FocusTimerViewModel = koinViewModel(),
+    onMenuClick: () -> Unit = {}
+) {
+    val timerState by focusTimerViewModel.timerState.collectAsState()
+    val scrollBehaviour = TopAppBarDefaults.enterAlwaysScrollBehavior(rememberTopAppBarState())
+
+    Scaffold(
+        modifier = Modifier
+            .fillMaxSize()
+            .nestedScroll(scrollBehaviour.nestedScrollConnection),
+        topBar = {
+            TopAppBar(
+                title = {
+                    Text(
+                        text = "Focus Timer",
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        style = MaterialTheme.typography.titleLarge
+                    )
+                },
+                navigationIcon = {
+                    IconButton(onClick = onMenuClick) {
+                        Icon(
+                            imageVector = Icons.Default.Menu,
+                            contentDescription = "Menu"
+                        )
+                    }
+                },
+                scrollBehavior = scrollBehaviour,
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    titleContentColor = MaterialTheme.colorScheme.onSurface,
+                    scrolledContainerColor = MaterialTheme.colorScheme.surfaceContainer,
+                    navigationIconContentColor = MaterialTheme.colorScheme.onSurface,
+                    actionIconContentColor = MaterialTheme.colorScheme.onSurface
+                )
+            )
+        }
+    ) { paddingValues ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
+                .background(MaterialTheme.colorScheme.surface)
+                .padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            // Timer Display
+            Text(
+                text = focusTimerViewModel.formatTime(timerState.elapsedSeconds),
+                style = MaterialTheme.typography.displayLarge.copy(
+                    fontSize = MaterialTheme.typography.displayLarge.fontSize * 1.5f
+                ),
+                color = MaterialTheme.colorScheme.onSurface
+            )
+
+            Spacer(modifier = Modifier.height(48.dp))
+
+            // Control Buttons
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Play/Pause Button
+                FloatingActionButton(
+                    onClick = {
+                        if (timerState.isRunning) {
+                            focusTimerViewModel.pauseTimer()
+                        } else {
+                            focusTimerViewModel.startTimer()
+                        }
+                    },
+                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                ) {
+                    Icon(
+                        imageVector = if (timerState.isRunning) Icons.Default.Pause else Icons.Default.PlayArrow,
+                        contentDescription = if (timerState.isRunning) "Pause" else "Play",
+                        modifier = Modifier.padding(4.dp)
+                    )
+                }
+
+                // Reset Button
+                FloatingActionButton(
+                    onClick = { focusTimerViewModel.resetTimer() },
+                    containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Refresh,
+                        contentDescription = "Reset",
+                        modifier = Modifier.padding(4.dp)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(32.dp))
+
+            // Status Text
+            Text(
+                text = if (timerState.isRunning) "Focusing..." else "Paused",
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
     }
 }

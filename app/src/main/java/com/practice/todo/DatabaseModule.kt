@@ -29,4 +29,7 @@ val databaseModule = module{
     viewModel {
         TaskViewModel(get())
     }
+    viewModel {
+        FocusTimerViewModel()
+    }
 }
