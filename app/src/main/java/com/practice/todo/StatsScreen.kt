@@ -17,11 +17,15 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.AllInclusive
+import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.CalendarToday
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.DateRange
+import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material.icons.filled.Today
+import androidx.compose.material.icons.filled.Whatshot
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -29,6 +33,9 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
@@ -54,6 +61,8 @@ fun StatsScreen(
 ) {
     val stats by statsViewModel.stats.collectAsState()
     val recentSessions by statsViewModel.recentSessions.collectAsState()
+    val chartData by statsViewModel.chartData.collectAsState()
+    val selectedPeriod by statsViewModel.selectedChartPeriod.collectAsState()
     val scrollBehavior = TopAppBarDefaults.enterAlwaysScrollBehavior(rememberTopAppBarState())
 
     Scaffold(
@@ -64,7 +73,7 @@ fun StatsScreen(
             TopAppBar(
                 title = {
                     Text(
-                        text = "Home",
+                        text = "Focus Stats",
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         style = MaterialTheme.typography.titleLarge
@@ -125,6 +134,87 @@ fun StatsScreen(
 
             item {
                 Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "Streaks",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.padding(vertical = 8.dp)
+                )
+            }
+
+            item {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    StreakCard(
+                        title = "Current Streak",
+                        value = "${stats.currentStreak}",
+                        subtitle = if (stats.currentStreak == 1) "day" else "days",
+                        icon = Icons.Default.Whatshot,
+                        modifier = Modifier.weight(1f),
+                        containerColor = MaterialTheme.colorScheme.primaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
+
+                    StreakCard(
+                        title = "Longest Streak",
+                        value = "${stats.longestStreak}",
+                        subtitle = if (stats.longestStreak == 1) "day" else "days",
+                        icon = Icons.Default.EmojiEvents,
+                        modifier = Modifier.weight(1f),
+                        containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                    )
+                }
+            }
+
+            // Session Stats
+            item {
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "Session Stats",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.padding(vertical = 8.dp)
+                )
+            }
+
+            item {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    SmallStatCard(
+                        title = "Today",
+                        value = "${stats.sessionsToday}",
+                        subtitle = "sessions",
+                        icon = Icons.Default.CheckCircle,
+                        modifier = Modifier.weight(1f)
+                    )
+
+                    SmallStatCard(
+                        title = "Avg/Day",
+                        value = statsViewModel.formatDecimal(stats.averageSessionsPerDay),
+                        subtitle = "sessions",
+                        icon = Icons.Default.BarChart,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+            }
+
+            // Time Period Stats
+            item {
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "Focus Time",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.padding(vertical = 8.dp)
+                )
             }
 
             item {
@@ -173,10 +263,6 @@ fun StatsScreen(
 
             // Average session
             item {
-                Spacer(modifier = Modifier.height(8.dp))
-            }
-
-            item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     colors = CardDefaults.cardColors(
@@ -216,23 +302,90 @@ fun StatsScreen(
                 }
             }
 
+            // Chart Section
+            item {
+                Spacer(modifier = Modifier.height(16.dp))
+                Text(
+                    text = "Activity Chart",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.padding(vertical = 8.dp)
+                )
+            }
+
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+                    ),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp)
+                    ) {
+                        // Period selector
+                        SingleChoiceSegmentedButtonRow(
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            SegmentedButton(
+                                selected = selectedPeriod == ChartPeriod.LAST_24_HOURS,
+                                onClick = { statsViewModel.setChartPeriod(ChartPeriod.LAST_24_HOURS) },
+                                shape = SegmentedButtonDefaults.itemShape(index = 0, count = 3)
+                            ) {
+                                Text("24h", style = MaterialTheme.typography.labelMedium)
+                            }
+                            SegmentedButton(
+                                selected = selectedPeriod == ChartPeriod.LAST_7_DAYS,
+                                onClick = { statsViewModel.setChartPeriod(ChartPeriod.LAST_7_DAYS) },
+                                shape = SegmentedButtonDefaults.itemShape(index = 1, count = 3)
+                            ) {
+                                Text("7d", style = MaterialTheme.typography.labelMedium)
+                            }
+                            SegmentedButton(
+                                selected = selectedPeriod == ChartPeriod.LAST_12_MONTHS,
+                                onClick = { statsViewModel.setChartPeriod(ChartPeriod.LAST_12_MONTHS) },
+                                shape = SegmentedButtonDefaults.itemShape(index = 2, count = 3)
+                            ) {
+                                Text("12m", style = MaterialTheme.typography.labelMedium)
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        // Bar chart
+                        BarChart(
+                            data = chartData,
+                            barColor = MaterialTheme.colorScheme.primary,
+                            maxHeight = 180f
+                        )
+                    }
+                }
+            }
+
+            // Recent sessions header
             if (recentSessions.isNotEmpty()) {
                 item {
                     Spacer(modifier = Modifier.height(16.dp))
                     Text(
                         text = "Recent Sessions",
-                        style = MaterialTheme.typography.titleMedium,
+                        style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurface,
                         modifier = Modifier.padding(vertical = 8.dp)
                     )
                 }
 
+                // Recent sessions list
                 items(recentSessions) { session ->
                     SessionItem(session, statsViewModel)
                 }
             }
 
+            // Bottom spacing
             item {
                 Spacer(modifier = Modifier.height(16.dp))
             }
@@ -292,6 +445,108 @@ fun StatCard(
                 style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.Bold,
                 color = contentColor
+            )
+        }
+    }
+}
+
+@Composable
+fun StreakCard(
+    title: String,
+    value: String,
+    subtitle: String,
+    icon: ImageVector,
+    modifier: Modifier = Modifier,
+    containerColor: androidx.compose.ui.graphics.Color,
+    contentColor: androidx.compose.ui.graphics.Color
+) {
+    Card(
+        modifier = modifier,
+        colors = CardDefaults.cardColors(
+            containerColor = containerColor
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        shape = RoundedCornerShape(16.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                modifier = Modifier.size(32.dp),
+                tint = contentColor
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = value,
+                style = MaterialTheme.typography.headlineLarge,
+                fontWeight = FontWeight.Bold,
+                color = contentColor
+            )
+            Text(
+                text = subtitle,
+                style = MaterialTheme.typography.bodySmall,
+                color = contentColor.copy(alpha = 0.8f)
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = title,
+                style = MaterialTheme.typography.labelMedium,
+                color = contentColor.copy(alpha = 0.9f)
+            )
+        }
+    }
+}
+
+@Composable
+fun SmallStatCard(
+    title: String,
+    value: String,
+    subtitle: String,
+    icon: ImageVector,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier,
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+        shape = RoundedCornerShape(12.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                modifier = Modifier.size(28.dp),
+                tint = MaterialTheme.colorScheme.primary
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = value,
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Text(
+                text = subtitle,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = title,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
     }
