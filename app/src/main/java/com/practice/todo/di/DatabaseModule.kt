@@ -1,8 +1,14 @@
-package com.practice.todo
+package com.practice.todo.di
 
 import androidx.room.Room
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
+import com.practice.todo.data.dao.FocusSessionDao
+import com.practice.todo.data.dao.TaskDao
+import com.practice.todo.data.database.TaskDatabase
+import com.practice.todo.viewmodel.FocusTimerViewModel
+import com.practice.todo.viewmodel.StatsViewModel
+import com.practice.todo.viewmodel.TaskViewModel
 import org.koin.android.ext.koin.androidContext
 import org.koin.core.module.dsl.viewModel
 import org.koin.dsl.module

@@ -1,4 +1,4 @@
-package com.practice.todo
+package com.practice.todo.model
 
 enum class ChartPeriod {
     LAST_24_HOURS,

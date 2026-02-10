@@ -1,8 +1,9 @@
-package com.practice.todo
+package com.practice.todo.data.entity
 
 import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.PrimaryKey
+import com.practice.todo.model.TaskImportance
 import java.time.LocalDateTime
 
 @Entity(tableName = "tasks")

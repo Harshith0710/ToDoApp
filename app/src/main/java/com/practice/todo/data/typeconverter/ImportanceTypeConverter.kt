@@ -1,6 +1,7 @@
-package com.practice.todo
+package com.practice.todo.data.typeconverter
 
 import androidx.room.TypeConverter
+import com.practice.todo.model.TaskImportance
 
 class ImportanceTypeConverter {
     @TypeConverter

@@ -1,8 +1,9 @@
-package com.practice.todo
+package com.practice.todo.data.dao
 
 import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.Query
+import com.practice.todo.data.entity.FocusSession
 import kotlinx.coroutines.flow.Flow
 import java.time.LocalDateTime
 

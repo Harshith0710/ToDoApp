@@ -1,7 +1,11 @@
-package com.practice.todo
+package com.practice.todo.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.practice.todo.model.TimerMode
+import com.practice.todo.model.TimerState
+import com.practice.todo.data.dao.FocusSessionDao
+import com.practice.todo.data.entity.FocusSession
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow

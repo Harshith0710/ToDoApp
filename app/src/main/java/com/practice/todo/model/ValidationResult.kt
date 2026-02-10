@@ -1,4 +1,4 @@
-package com.practice.todo
+package com.practice.todo.model
 
 data class ValidationResult(
     val isValid: Boolean,

@@ -1,7 +1,12 @@
-package com.practice.todo
+package com.practice.todo.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.practice.todo.model.ChartData
+import com.practice.todo.model.ChartPeriod
+import com.practice.todo.model.FocusStats
+import com.practice.todo.data.dao.FocusSessionDao
+import com.practice.todo.data.entity.FocusSession
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest

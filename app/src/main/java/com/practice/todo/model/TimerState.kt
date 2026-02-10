@@ -1,4 +1,4 @@
-package com.practice.todo
+package com.practice.todo.model
 
 data class TimerState(
     val elapsedSeconds: Long = 0,

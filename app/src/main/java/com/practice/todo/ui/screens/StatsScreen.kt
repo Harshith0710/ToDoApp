@@ -1,4 +1,4 @@
-package com.practice.todo
+package com.practice.todo.ui.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -41,15 +41,20 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberTopAppBarState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.practice.todo.ui.components.BarChart
+import com.practice.todo.model.ChartPeriod
+import com.practice.todo.viewmodel.StatsViewModel
+import com.practice.todo.data.entity.FocusSession
 import org.koin.compose.viewmodel.koinViewModel
 import java.time.format.DateTimeFormatter
 
@@ -59,10 +64,10 @@ fun StatsScreen(
     statsViewModel: StatsViewModel = koinViewModel(),
     onMenuClick: () -> Unit = {}
 ) {
-    val stats by statsViewModel.stats.collectAsState()
-    val recentSessions by statsViewModel.recentSessions.collectAsState()
-    val chartData by statsViewModel.chartData.collectAsState()
-    val selectedPeriod by statsViewModel.selectedChartPeriod.collectAsState()
+    val stats by statsViewModel.stats.collectAsStateWithLifecycle()
+    val recentSessions by statsViewModel.recentSessions.collectAsStateWithLifecycle()
+    val chartData by statsViewModel.chartData.collectAsStateWithLifecycle()
+    val selectedPeriod by statsViewModel.selectedChartPeriod.collectAsStateWithLifecycle()
     val scrollBehavior = TopAppBarDefaults.enterAlwaysScrollBehavior(rememberTopAppBarState())
 
     Scaffold(
@@ -399,8 +404,8 @@ fun StatCard(
     duration: String,
     detailedDuration: String,
     icon: ImageVector,
-    containerColor: androidx.compose.ui.graphics.Color,
-    contentColor: androidx.compose.ui.graphics.Color
+    containerColor: Color,
+    contentColor: Color
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -457,8 +462,8 @@ fun StreakCard(
     subtitle: String,
     icon: ImageVector,
     modifier: Modifier = Modifier,
-    containerColor: androidx.compose.ui.graphics.Color,
-    contentColor: androidx.compose.ui.graphics.Color
+    containerColor: Color,
+    contentColor: Color
 ) {
     Card(
         modifier = modifier,
