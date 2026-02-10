@@ -37,13 +37,14 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Menu
-import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Timer
-import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.BottomSheetScaffold
@@ -51,28 +52,31 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CheckboxDefaults
+import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SheetValue
-import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.NavigationDrawerItem
 import androidx.compose.material3.NavigationDrawerItemDefaults
-import androidx.compose.material3.rememberDrawerState
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SheetValue
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.TopAppBarScrollBehavior
 import androidx.compose.material3.rememberBottomSheetScaffoldState
+import androidx.compose.material3.rememberDrawerState
 import androidx.compose.material3.rememberStandardBottomSheetState
 import androidx.compose.material3.rememberTopAppBarState
 import androidx.compose.runtime.Composable
@@ -124,7 +128,8 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun TodoAppInterface(
     taskViewModel: TaskViewModel = koinViewModel(),
-    focusTimerViewModel: FocusTimerViewModel = koinViewModel()
+    focusTimerViewModel: FocusTimerViewModel = koinViewModel(),
+    statsViewModel: StatsViewModel = koinViewModel()
 ) {
     var selectedScreen by rememberSaveable { mutableIntStateOf(0) }
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
@@ -143,8 +148,8 @@ fun TodoAppInterface(
                 Spacer(modifier = Modifier.height(8.dp))
 
                 NavigationDrawerItem(
-                    icon = { Icon(Icons.Default.CheckCircle, contentDescription = null) },
-                    label = { Text("Tasks") },
+                    icon = { Icon(Icons.Default.Home, contentDescription = null) },
+                    label = { Text("Home") },
                     selected = selectedScreen == 0,
                     onClick = {
                         selectedScreen = 0
@@ -154,11 +159,22 @@ fun TodoAppInterface(
                 )
 
                 NavigationDrawerItem(
-                    icon = { Icon(Icons.Default.Timer, contentDescription = null) },
-                    label = { Text("Focus Timer") },
+                    icon = { Icon(Icons.Default.CheckCircle, contentDescription = null) },
+                    label = { Text("Tasks") },
                     selected = selectedScreen == 1,
                     onClick = {
                         selectedScreen = 1
+                        scope.launch { drawerState.close() }
+                    },
+                    modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
+                )
+
+                NavigationDrawerItem(
+                    icon = { Icon(Icons.Default.Timer, contentDescription = null) },
+                    label = { Text("Focus Timer") },
+                    selected = selectedScreen == 2,
+                    onClick = {
+                        selectedScreen = 2
                         scope.launch { drawerState.close() }
                     },
                     modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
@@ -167,8 +183,9 @@ fun TodoAppInterface(
         }
     ) {
         when (selectedScreen) {
-            0 -> TasksScreen(taskViewModel, onMenuClick = { scope.launch { drawerState.open() } })
-            1 -> FocusTimerScreen(focusTimerViewModel, onMenuClick = { scope.launch { drawerState.open() } })
+            0 -> StatsScreen(statsViewModel, onMenuClick = { scope.launch { drawerState.open() } })
+            1 -> TasksScreen(taskViewModel, onMenuClick = { scope.launch { drawerState.open() } })
+            2 -> FocusTimerScreen(focusTimerViewModel, onMenuClick = { scope.launch { drawerState.open() } })
         }
     }
 }
@@ -902,23 +919,24 @@ fun FocusTimerScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            // Timer Display
             Text(
                 text = focusTimerViewModel.formatTime(timerState.elapsedSeconds),
                 style = MaterialTheme.typography.displayLarge.copy(
                     fontSize = MaterialTheme.typography.displayLarge.fontSize * 1.5f
                 ),
-                color = MaterialTheme.colorScheme.onSurface
+                color = if (timerState.mode == TimerMode.POMODORO && timerState.elapsedSeconds == 0L && !timerState.isRunning) {
+                    MaterialTheme.colorScheme.primary
+                } else {
+                    MaterialTheme.colorScheme.onSurface
+                }
             )
 
             Spacer(modifier = Modifier.height(48.dp))
 
-            // Control Buttons
             Row(
                 horizontalArrangement = Arrangement.spacedBy(16.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Play/Pause Button
                 FloatingActionButton(
                     onClick = {
                         if (timerState.isRunning) {
@@ -937,7 +955,6 @@ fun FocusTimerScreen(
                     )
                 }
 
-                // Reset Button
                 FloatingActionButton(
                     onClick = { focusTimerViewModel.resetTimer() },
                     containerColor = MaterialTheme.colorScheme.secondaryContainer,
@@ -953,12 +970,25 @@ fun FocusTimerScreen(
 
             Spacer(modifier = Modifier.height(32.dp))
 
-            // Status Text
-            Text(
-                text = if (timerState.isRunning) "Focusing..." else "Paused",
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+            SingleChoiceSegmentedButtonRow()
+            {
+                SegmentedButton(
+                    selected = timerState.mode == TimerMode.FOCUS,
+                    onClick = { focusTimerViewModel.setMode(TimerMode.FOCUS) },
+                    shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2),
+                    enabled = !timerState.isRunning
+                ) {
+                    Text("Focus Mode")
+                }
+                SegmentedButton(
+                    selected = timerState.mode == TimerMode.POMODORO,
+                    onClick = { focusTimerViewModel.setMode(TimerMode.POMODORO) },
+                    shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2),
+                    enabled = !timerState.isRunning
+                ) {
+                    Text("Pomodoro")
+                }
+            }
         }
     }
 }

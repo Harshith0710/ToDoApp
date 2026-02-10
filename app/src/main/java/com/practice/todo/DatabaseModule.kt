@@ -15,21 +15,43 @@ val MIGRATION_1_2 = object : Migration(1, 2) {
     }
 }
 
+val MIGRATION_2_3 = object : Migration(2, 3) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("""
+            CREATE TABLE IF NOT EXISTS focus_sessions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                startTime TEXT NOT NULL,
+                endTime TEXT NOT NULL,
+                durationSeconds INTEGER NOT NULL,
+                mode TEXT NOT NULL
+            )
+        """)
+    }
+}
+
 val databaseModule = module{
     single {
         Room.databaseBuilder(
             androidContext(),
             TaskDatabase::class.java,
             "task_database"
-        ).addMigrations(MIGRATION_1_2).build()
+        )
+            .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+            .build()
     }
     single<TaskDao> {
         get<TaskDatabase>().taskDao()
+    }
+    single<FocusSessionDao> {
+        get<TaskDatabase>().focusSessionDao()
     }
     viewModel {
         TaskViewModel(get())
     }
     viewModel {
-        FocusTimerViewModel()
+        FocusTimerViewModel(get())
+    }
+    viewModel {
+        StatsViewModel(get())
     }
 }
